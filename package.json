@@ -1,0 +1,23 @@
+{
+  "name": "backend-verifikasidata",
+  "version": "1.0.0",
+  "description": "Sistem Validasi dan Cleansing Duplikasi Nomor Identitas - Backend",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "db:seed": "bun run src/db/seed.ts",
+    "db:test": "bun run src/db/test-connection.ts"
+  },
+  "dependencies": {
+    "@hono/swagger-ui": "^0.6.1",
+    "@types/mssql": "^12.3.0",
+    "hono": "^4.6.14",
+    "mssql": "^12.7.2"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.2"
+  }
+}

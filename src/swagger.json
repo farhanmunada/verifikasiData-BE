@@ -1,0 +1,116 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Verifikasi Data API",
+    "version": "1.0.0",
+    "description": "API Documentation for Sistem Validasi dan Cleansing Duplikasi Nomor Identitas"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    { "name": "Auth", "description": "Authentication endpoints" },
+    { "name": "Validation", "description": "Data Validation and Cleansing endpoints" },
+    { "name": "Dashboard", "description": "Dashboard statistics endpoints" }
+  ],
+  "paths": {
+    "/api/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Login to the system",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": { "type": "string" },
+                  "password": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Login successful" },
+          "400": { "description": "Validation error" }
+        }
+      }
+    },
+    "/api/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "summary": "Get current user profile",
+        "responses": {
+          "200": { "description": "Profile data" },
+          "401": { "description": "Unauthorized" }
+        }
+      }
+    },
+    "/api/validation/dashboard": {
+      "get": {
+        "tags": ["Validation"],
+        "summary": "Get dashboard validation statistics",
+        "responses": {
+          "200": { "description": "Dashboard statistics" }
+        }
+      }
+    },
+    "/api/validation/duplicates": {
+      "get": {
+        "tags": ["Validation"],
+        "summary": "Get list of duplicate candidates",
+        "responses": {
+          "200": { "description": "List of duplicates" }
+        }
+      }
+    },
+    "/api/validation/identity/{identityNumber}": {
+      "get": {
+        "tags": ["Validation"],
+        "summary": "Check an identity number",
+        "parameters": [
+          {
+            "name": "identityNumber",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Identity verification details" }
+        }
+      }
+    },
+    "/api/validation/{id}/clean": {
+      "post": {
+        "tags": ["Validation"],
+        "summary": "Execute data cleansing for a duplicate record",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "Cleansing successful" }
+        }
+      }
+    },
+    "/api/dashboard/": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get dashboard statistics",
+        "responses": {
+          "200": { "description": "Dashboard statistics" }
+        }
+      }
+    }
+  }
+}
