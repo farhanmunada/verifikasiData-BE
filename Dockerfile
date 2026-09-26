@@ -19,11 +19,11 @@ COPY --chown=bun:bun src ./src
 # Set user to non-root
 USER bun
 
-# Expose port (default 3000)
-EXPOSE 3000/tcp
+# Expose port (default 3100)
+EXPOSE 3100/tcp
 
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3100
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
