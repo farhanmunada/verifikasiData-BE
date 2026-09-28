@@ -1,4 +1,5 @@
 import { rmPasienRepository } from '../repositories/rmpasien.repository';
+import { rmLogCleansingRepository, GetLogsParams } from '../repositories/rmlogcleansing.repository';
 
 export class ValidationService {
   async getDashboardStats() {
@@ -37,20 +38,41 @@ export class ValidationService {
     };
   }
 
-  async cleanDuplicate(vc_no_rm: string) {
+  async cleanDuplicate(vc_no_rm: string, userClean: string = 'ADMIN') {
     const record = await rmPasienRepository.findByRm(vc_no_rm);
     if (!record) {
       throw { statusCode: 404, message: 'Data pasien tidak ditemukan.', code: 'NOT_FOUND' };
     }
 
+    const oldIdentity = record.vc_no_peserta_bpjs;
+    const patientName = record.vc_nama_p;
+
     await rmPasienRepository.updateIdentity(vc_no_rm, 'XXX');
+
+    // Catat log perubahan ke dbo.RMLogCleansing
+    const logRecord = await rmLogCleansingRepository.createLog({
+      vc_no_rm,
+      vc_nama_p: patientName,
+      vc_no_peserta_bpjs_lama: oldIdentity,
+      vc_no_peserta_bpjs_baru: 'XXX',
+      vc_user_clean: userClean,
+    });
 
     return {
       vc_no_rm,
-      old_identity: record.vc_no_peserta_bpjs,
-      status: 'CLEANED'
+      vc_nama_p: patientName,
+      old_identity: oldIdentity,
+      new_identity: 'XXX',
+      user_clean: userClean,
+      status: 'CLEANED',
+      log: logRecord,
     };
+  }
+
+  async getCleansingLogs(params: GetLogsParams) {
+    return await rmLogCleansingRepository.getLogs(params);
   }
 }
 
 export const validationService = new ValidationService();
+

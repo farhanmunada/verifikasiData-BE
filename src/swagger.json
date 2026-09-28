@@ -12,45 +12,10 @@
     }
   ],
   "tags": [
-    { "name": "Auth", "description": "Authentication endpoints" },
     { "name": "Validation", "description": "Data Validation and Cleansing endpoints" },
     { "name": "Dashboard", "description": "Dashboard statistics endpoints" }
   ],
   "paths": {
-    "/api/auth/login": {
-      "post": {
-        "tags": ["Auth"],
-        "summary": "Login to the system",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "username": { "type": "string" },
-                  "password": { "type": "string" }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": { "description": "Login successful" },
-          "400": { "description": "Validation error" }
-        }
-      }
-    },
-    "/api/auth/me": {
-      "get": {
-        "tags": ["Auth"],
-        "summary": "Get current user profile",
-        "responses": {
-          "200": { "description": "Profile data" },
-          "401": { "description": "Unauthorized" }
-        }
-      }
-    },
     "/api/validation/dashboard": {
       "get": {
         "tags": ["Validation"],
@@ -100,6 +65,35 @@
         ],
         "responses": {
           "200": { "description": "Cleansing successful" }
+        }
+      }
+    },
+    "/api/validation/logs": {
+      "get": {
+        "tags": ["Validation"],
+        "summary": "Get cleansing audit logs (RMLogCleansing)",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 10 }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": { "description": "List of cleansing audit logs" }
         }
       }
     },

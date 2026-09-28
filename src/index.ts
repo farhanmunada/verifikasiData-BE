@@ -4,7 +4,6 @@ import { env } from './config/env';
 
 import { successResponse, errorResponse } from './utils/response';
 
-import authRoute from './routes/auth.route';
 import validationRoute from './routes/validation.route';
 import dashboardRoute from './routes/dashboard.route';
 
@@ -23,12 +22,11 @@ app.use(
   cors({
     origin: [env.FRONTEND_URL, 'http://localhost:5173', 'http://localhost:3000'],
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: ['Content-Type', 'Authorization'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-User'],
   })
 );
 
 // Mount API Routes
-app.route('/api/auth', authRoute);
 app.route('/api/validation', validationRoute);
 app.route('/api/dashboard', dashboardRoute);
 
