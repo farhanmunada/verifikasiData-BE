@@ -1,27 +1,114 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Verifikasi Data API",
+    "title": "API Sistem Validasi dan Cleansing Duplikasi Nomor Identitas",
     "version": "1.0.0",
-    "description": "API Documentation for Sistem Validasi dan Cleansing Duplikasi Nomor Identitas"
+    "description": "Dokumentasi API untuk validasi nomor identitas (BPJS), deteksi duplikasi data pasien, pembersihan data (cleansing ke 'XXX'), serta pencatatan audit log riwayat cleansing (dbo.RMLogCleansing)."
   },
   "servers": [
     {
-      "url": "http://localhost:3000",
-      "description": "Local Development Server"
+      "url": "/",
+      "description": "Current Server (Relative Path)"
+    },
+    {
+      "url": "http://localhost:3100",
+      "description": "Default Local Development Server (Port 3100)"
     }
   ],
   "tags": [
-    { "name": "Validation", "description": "Data Validation and Cleansing endpoints" },
-    { "name": "Dashboard", "description": "Dashboard statistics endpoints" }
+    {
+      "name": "System",
+      "description": "Endpoint sistem dan health check"
+    },
+    {
+      "name": "Dashboard",
+      "description": "Endpoint ringkasan statistik data dan identitas"
+    },
+    {
+      "name": "Validation",
+      "description": "Endpoint validasi identitas, duplikasi, eksekusi cleansing, dan audit log"
+    }
   ],
   "paths": {
+    "/": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Root information",
+        "description": "Mengembalikan informasi umum sistem dan versi runtime.",
+        "responses": {
+          "200": {
+            "description": "Informasi sistem berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemInfoResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": ["System"],
+        "summary": "Health check",
+        "description": "Mengecek status kesehatan server dan uptime.",
+        "responses": {
+          "200": {
+            "description": "Layanan aktif dan sehat",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthCheckResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/dashboard/": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get dashboard summary statistics",
+        "description": "Mengambil ringkasan statistik total data pasien, total nomor identitas unik, total data yang telah dicleansing ('XXX'), dan total grup duplikat.",
+        "responses": {
+          "200": {
+            "description": "Ringkasan statistik dashboard berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/api/validation/dashboard": {
       "get": {
         "tags": ["Validation"],
         "summary": "Get dashboard validation statistics",
+        "description": "Alias endpoint untuk mengambil statistik ringkasan dashboard validasi.",
         "responses": {
-          "200": { "description": "Dashboard statistics" }
+          "200": {
+            "description": "Statistik dashboard berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardStatsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
         }
       }
     },
@@ -29,8 +116,21 @@
       "get": {
         "tags": ["Validation"],
         "summary": "Get list of duplicate candidates",
+        "description": "Mengambil daftar nomor identitas BPJS yang terdeteksi duplikat (memiliki lebih dari 1 nomor rekam medis dan bukan bernilai 'XXX').",
         "responses": {
-          "200": { "description": "List of duplicates" }
+          "200": {
+            "description": "Daftar kandidat duplikat berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateCandidatesResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
         }
       }
     },
@@ -38,16 +138,36 @@
       "get": {
         "tags": ["Validation"],
         "summary": "Check an identity number",
+        "description": "Memeriksa detail nomor identitas BPJS tertentu dan daftar seluruh rekam medis yang menggunakannya.",
         "parameters": [
           {
             "name": "identityNumber",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "description": "Nomor identitas/peserta BPJS yang ingin diperiksa",
+            "schema": {
+              "type": "string",
+              "example": "0001234567890"
+            }
           }
         ],
         "responses": {
-          "200": { "description": "Identity verification details" }
+          "200": {
+            "description": "Pemeriksaan nomor identitas berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityCheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
         }
       }
     },
@@ -55,16 +175,74 @@
       "post": {
         "tags": ["Validation"],
         "summary": "Execute data cleansing for a duplicate record",
+        "description": "Melakukan proses cleansing pada data pasien berdasarkan nomor RM (`vc_no_rm`), mengubah nomor identitasnya menjadi 'XXX', dan mencatat riwayat audit ke tabel `dbo.RMLogCleansing`.",
         "parameters": [
           {
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "description": "Nomor Rekam Medis (vc_no_rm) pasien yang ingin dicleansing",
+            "schema": {
+              "type": "string",
+              "example": "RM-00123"
+            }
+          },
+          {
+            "name": "X-User",
+            "in": "header",
+            "required": false,
+            "description": "Nama username pengguna yang mengeksekusi cleansing (opsional)",
+            "schema": {
+              "type": "string",
+              "example": "petugas_rekam_medis"
+            }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "description": "Payload opsional untuk menentukan identitas user yang melakukan cleansing",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanRequestBody"
+              }
+            }
+          }
+        },
         "responses": {
-          "200": { "description": "Cleansing successful" }
+          "200": {
+            "description": "Proses cleansing berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanActionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequestError"
+          },
+          "404": {
+            "description": "Data rekam medis pasien tidak ditemukan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "message": "Data pasien tidak ditemukan.",
+                  "error": {
+                    "code": "NOT_FOUND"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
         }
       }
     },
@@ -72,37 +250,340 @@
       "get": {
         "tags": ["Validation"],
         "summary": "Get cleansing audit logs (RMLogCleansing)",
+        "description": "Mengambil riwayat log audit tindakan cleansing pasien dengan pagination dan fitur pencarian.",
         "parameters": [
           {
             "name": "page",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 1 }
+            "description": "Halaman log saat ini (default: 1)",
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "minimum": 1
+            }
           },
           {
             "name": "limit",
             "in": "query",
             "required": false,
-            "schema": { "type": "integer", "default": 10 }
+            "description": "Jumlah log per halaman (default: 10, max: 100)",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "minimum": 1,
+              "maximum": 100
+            }
           },
           {
             "name": "search",
             "in": "query",
             "required": false,
-            "schema": { "type": "string" }
+            "description": "Filter pencarian kata kunci berdasarkan no RM, nama pasien, atau no peserta lama",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
-          "200": { "description": "List of cleansing audit logs" }
+          "200": {
+            "description": "Daftar riwayat cleansing berhasil diambil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleansingLogsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JWT Bearer Token opsional untuk mendeteksi identitas user pembersih data"
+      },
+      "XUserAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-User",
+        "description": "Header alternatif untuk memasukkan username petugas cleansing"
+      }
+    },
+    "responses": {
+      "BadRequestError": {
+        "description": "Parameter permintaan tidak valid",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "message": "Nomor identitas BPJS wajib diisi.",
+              "error": {
+                "code": "VALIDATION_ERROR"
+              }
+            }
+          }
+        }
+      },
+      "InternalServerError": {
+        "description": "Terjadi kesalahan pada server",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/ErrorResponse"
+            },
+            "example": {
+              "success": false,
+              "message": "Terjadi kesalahan internal pada server.",
+              "error": {
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          }
         }
       }
     },
-    "/api/dashboard/": {
-      "get": {
-        "tags": ["Dashboard"],
-        "summary": "Get dashboard statistics",
-        "responses": {
-          "200": { "description": "Dashboard statistics" }
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "example": false
+          },
+          "message": {
+            "type": "string",
+            "example": "Gagal memproses permintaan."
+          },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "example": "INTERNAL_SERVER_ERROR"
+              },
+              "details": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "SystemInfoResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Sistem Validasi dan Cleansing Duplikasi Nomor Identitas API" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "version": { "type": "string", "example": "1.0.0" },
+              "runtime": { "type": "string", "example": "Bun" },
+              "framework": { "type": "string", "example": "Hono" }
+            }
+          }
+        }
+      },
+      "HealthCheckResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Service is healthy" },
+          "data": {
+            "type": "object",
+            "properties": {
+              "uptime": { "type": "number", "example": 124.5 },
+              "timestamp": { "type": "string", "example": "2026-09-28T05:42:00.000Z" }
+            }
+          }
+        }
+      },
+      "DashboardStatsData": {
+        "type": "object",
+        "properties": {
+          "totalData": {
+            "type": "integer",
+            "description": "Total seluruh data rekam medis pasien di tabel RMPasien",
+            "example": 25430
+          },
+          "totalIdentities": {
+            "type": "integer",
+            "description": "Total nomor peserta identitas unik (tidak termasuk kosong/null)",
+            "example": 24100
+          },
+          "totalCleanedRegistrations": {
+            "type": "integer",
+            "description": "Total data registrasi yang sudah dicleansing (identitas diubah menjadi 'XXX')",
+            "example": 150
+          },
+          "totalDuplicateGroups": {
+            "type": "integer",
+            "description": "Total kelompok nomor identitas yang memiliki duplikasi (> 1 RM)",
+            "example": 45
+          }
+        }
+      },
+      "DashboardStatsResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Ringkasan dashboard berhasil diambil." },
+          "data": {
+            "$ref": "#/components/schemas/DashboardStatsData"
+          }
+        }
+      },
+      "DuplicateCandidateItem": {
+        "type": "object",
+        "properties": {
+          "vc_no_peserta_bpjs": {
+            "type": "string",
+            "example": "0001234567890"
+          },
+          "count": {
+            "type": "integer",
+            "example": 2
+          }
+        }
+      },
+      "DuplicateCandidatesResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Daftar kandidat duplikat berhasil diambil." },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateCandidateItem"
+            }
+          }
+        }
+      },
+      "RMPasienRecord": {
+        "type": "object",
+        "properties": {
+          "vc_no_rm": { "type": "string", "example": "RM-00123" },
+          "vc_nama_p": { "type": "string", "example": "Budi Santoso" },
+          "vc_no_peserta_bpjs": { "type": "string", "example": "0001234567890" },
+          "vc_alamat": { "type": "string", "example": "Jl. Mawar No. 12" },
+          "dt_tgl_lahir": { "type": "string", "example": "1990-05-15" }
+        }
+      },
+      "IdentityCheckData": {
+        "type": "object",
+        "properties": {
+          "no_identitas": { "type": "string", "example": "0001234567890" },
+          "total_records": { "type": "integer", "example": 2 },
+          "total_rm": { "type": "integer", "example": 2 },
+          "is_duplicate": { "type": "boolean", "example": true },
+          "records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RMPasienRecord"
+            }
+          }
+        }
+      },
+      "IdentityCheckResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Pemeriksaan nomor identitas berhasil." },
+          "data": {
+            "$ref": "#/components/schemas/IdentityCheckData"
+          }
+        }
+      },
+      "CleanRequestBody": {
+        "type": "object",
+        "properties": {
+          "user": {
+            "type": "string",
+            "description": "Username petugas yang menjalankan cleansing",
+            "example": "petugas_rekam_medis"
+          },
+          "username": {
+            "type": "string",
+            "description": "Alias username alternatif",
+            "example": "petugas_rekam_medis"
+          },
+          "vc_user_clean": {
+            "type": "string",
+            "description": "Kolom audit database user clean",
+            "example": "petugas_rekam_medis"
+          }
+        }
+      },
+      "CleanActionResult": {
+        "type": "object",
+        "properties": {
+          "vc_no_rm": { "type": "string", "example": "RM-00123" },
+          "vc_nama_p": { "type": "string", "example": "Budi Santoso" },
+          "old_identity": { "type": "string", "example": "0001234567890" },
+          "new_identity": { "type": "string", "example": "XXX" },
+          "user_clean": { "type": "string", "example": "ADMIN" },
+          "status": { "type": "string", "example": "CLEANED" },
+          "log": {
+            "$ref": "#/components/schemas/RMLogCleansingRecord"
+          }
+        }
+      },
+      "CleanActionResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Cleansing berhasil." },
+          "data": {
+            "$ref": "#/components/schemas/CleanActionResult"
+          }
+        }
+      },
+      "RMLogCleansingRecord": {
+        "type": "object",
+        "properties": {
+          "in_id": { "type": "integer", "example": 1 },
+          "vc_no_rm": { "type": "string", "example": "RM-00123" },
+          "vc_nama_p": { "type": "string", "example": "Budi Santoso" },
+          "vc_no_peserta_bpjs_lama": { "type": "string", "example": "0001234567890" },
+          "vc_no_peserta_bpjs_baru": { "type": "string", "example": "XXX" },
+          "vc_user_clean": { "type": "string", "example": "ADMIN" },
+          "dt_tgl_clean": { "type": "string", "example": "2026-09-28T09:30:00.000Z" }
+        }
+      },
+      "CleansingLogsData": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RMLogCleansingRecord"
+            }
+          },
+          "total": { "type": "integer", "example": 45 },
+          "page": { "type": "integer", "example": 1 },
+          "limit": { "type": "integer", "example": 10 },
+          "totalPages": { "type": "integer", "example": 5 }
+        }
+      },
+      "CleansingLogsResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "Daftar riwayat cleansing berhasil diambil." },
+          "data": {
+            "$ref": "#/components/schemas/CleansingLogsData"
+          }
         }
       }
     }
