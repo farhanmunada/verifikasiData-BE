@@ -49,14 +49,21 @@ export class ValidationService {
 
     await rmPasienRepository.updateIdentity(vc_no_rm, 'XXX');
 
-    // Catat log perubahan ke dbo.RMLogCleansing
-    const logRecord = await rmLogCleansingRepository.createLog({
-      vc_no_rm,
-      vc_nama_p: patientName,
-      vc_no_peserta_bpjs_lama: oldIdentity,
-      vc_no_peserta_bpjs_baru: 'XXX',
-      vc_user_clean: userClean,
-    });
+    // Catat log perubahan ke dbo.RMLogCleansing (jika tabel sudah dibuat oleh Kepala IT/DBA)
+    let logRecord: any = null;
+    try {
+      logRecord = await rmLogCleansingRepository.createLog({
+        vc_no_rm,
+        vc_nama_p: patientName,
+        vc_no_peserta_bpjs_lama: oldIdentity,
+        vc_no_peserta_bpjs_baru: 'XXX',
+        vc_user_clean: userClean,
+      });
+    } catch (logErr: any) {
+      console.warn(
+        `[Peringatan Log Cleansing] Gagal menyimpan riwayat ke dbo.RMLogCleansing. Kemungkinan tabel belum dibuat oleh Kepala IT/DBA: ${logErr?.message || logErr}`
+      );
+    }
 
     return {
       vc_no_rm,

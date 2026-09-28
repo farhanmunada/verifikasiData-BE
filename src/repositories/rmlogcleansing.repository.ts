@@ -30,48 +30,29 @@ export class RMLogCleansingRepository {
   async ensureTableExists(): Promise<void> {
     if (this.tableInitialized) return;
 
+    // Untuk SQL Server, pembuatan tabel DILAKUKAN MANUAL oleh Kepala IT/DBA via script SQL.
+    // Backend TIDAK mengeksekusi CREATE TABLE otomatis ke database produksi.
     if (isSqlServer) {
-      try {
-        const pool = await getPool();
-        await pool.request().query(`
-          IF NOT EXISTS (
-            SELECT * FROM sys.tables t 
-            JOIN sys.schemas s ON t.schema_id = s.schema_id 
-            WHERE t.name = 'RMLogCleansing' AND s.name = 'dbo'
-          )
-          BEGIN
-            CREATE TABLE dbo.RMLogCleansing (
-              in_id INT IDENTITY(1,1) PRIMARY KEY,
-              vc_no_rm VARCHAR(50) NOT NULL,
-              vc_nama_p VARCHAR(255) NULL,
-              vc_no_peserta_bpjs_lama VARCHAR(100) NULL,
-              vc_no_peserta_bpjs_baru VARCHAR(100) NOT NULL DEFAULT 'XXX',
-              vc_user_clean VARCHAR(100) NOT NULL DEFAULT 'ADMIN',
-              dt_tgl_clean DATETIME2 DEFAULT GETDATE()
-            );
-          END
-        `);
-        this.tableInitialized = true;
-      } catch (err) {
-        console.error('Gagal inisialisasi tabel dbo.RMLogCleansing di SQL Server:', err);
-      }
-    } else {
-      try {
-        sqliteDb!.run(`
-          CREATE TABLE IF NOT EXISTS RMLogCleansing (
-            in_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            vc_no_rm TEXT NOT NULL,
-            vc_nama_p TEXT,
-            vc_no_peserta_bpjs_lama TEXT,
-            vc_no_peserta_bpjs_baru TEXT NOT NULL DEFAULT 'XXX',
-            vc_user_clean TEXT NOT NULL DEFAULT 'ADMIN',
-            dt_tgl_clean DATETIME DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        this.tableInitialized = true;
-      } catch (err) {
-        console.error('Gagal inisialisasi tabel RMLogCleansing di SQLite:', err);
-      }
+      this.tableInitialized = true;
+      return;
+    }
+
+    // Hanya untuk SQLite lokal (development offline)
+    try {
+      sqliteDb!.run(`
+        CREATE TABLE IF NOT EXISTS RMLogCleansing (
+          in_id INTEGER PRIMARY KEY AUTOINCREMENT,
+          vc_no_rm TEXT NOT NULL,
+          vc_nama_p TEXT,
+          vc_no_peserta_bpjs_lama TEXT,
+          vc_no_peserta_bpjs_baru TEXT NOT NULL DEFAULT 'XXX',
+          vc_user_clean TEXT NOT NULL DEFAULT 'ADMIN',
+          dt_tgl_clean DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      this.tableInitialized = true;
+    } catch (err) {
+      console.error('Gagal inisialisasi tabel RMLogCleansing di SQLite lokal:', err);
     }
   }
 
@@ -151,40 +132,54 @@ export class RMLogCleansingRepository {
     const search = params.search ? `%${params.search.trim()}%` : null;
 
     if (isSqlServer) {
-      const pool = await getPool();
+      try {
+        const pool = await getPool();
 
-      let countQuery = `SELECT COUNT(*) AS total FROM dbo.RMLogCleansing`;
-      let dataQuery = `
-        SELECT in_id, vc_no_rm, vc_nama_p, vc_no_peserta_bpjs_lama, vc_no_peserta_bpjs_baru, vc_user_clean, dt_tgl_clean
-        FROM dbo.RMLogCleansing
-      `;
+        let countQuery = `SELECT COUNT(*) AS total FROM dbo.RMLogCleansing`;
+        let dataQuery = `
+          SELECT in_id, vc_no_rm, vc_nama_p, vc_no_peserta_bpjs_lama, vc_no_peserta_bpjs_baru, vc_user_clean, dt_tgl_clean
+          FROM dbo.RMLogCleansing
+        `;
 
-      if (search) {
-        const whereClause = ` WHERE (vc_no_rm LIKE @search OR vc_nama_p LIKE @search OR vc_no_peserta_bpjs_lama LIKE @search)`;
-        countQuery += whereClause;
-        dataQuery += whereClause;
+        if (search) {
+          const whereClause = ` WHERE (vc_no_rm LIKE @search OR vc_nama_p LIKE @search OR vc_no_peserta_bpjs_lama LIKE @search)`;
+          countQuery += whereClause;
+          dataQuery += whereClause;
+        }
+
+        dataQuery += ` ORDER BY dt_tgl_clean DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
+
+        const countReq = pool.request();
+        if (search) countReq.input('search', sql.VarChar(255), search);
+        const countRes = await countReq.query(countQuery);
+        const total = countRes.recordset[0]?.total || 0;
+
+        const dataReq = pool.request();
+        if (search) dataReq.input('search', sql.VarChar(255), search);
+        dataReq.input('offset', sql.Int, offset);
+        dataReq.input('limit', sql.Int, limit);
+        const dataRes = await dataReq.query(dataQuery);
+
+        return {
+          data: dataRes.recordset,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit) || 1,
+        };
+      } catch (err: any) {
+        if (err?.message?.includes('Invalid object name')) {
+          console.warn('[Peringatan] Tabel dbo.RMLogCleansing belum dibuat di SQL Server oleh Kepala IT/DBA.');
+          return {
+            data: [],
+            total: 0,
+            page,
+            limit,
+            totalPages: 1,
+          };
+        }
+        throw err;
       }
-
-      dataQuery += ` ORDER BY dt_tgl_clean DESC OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY`;
-
-      const countReq = pool.request();
-      if (search) countReq.input('search', sql.VarChar(255), search);
-      const countRes = await countReq.query(countQuery);
-      const total = countRes.recordset[0]?.total || 0;
-
-      const dataReq = pool.request();
-      if (search) dataReq.input('search', sql.VarChar(255), search);
-      dataReq.input('offset', sql.Int, offset);
-      dataReq.input('limit', sql.Int, limit);
-      const dataRes = await dataReq.query(dataQuery);
-
-      return {
-        data: dataRes.recordset,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit) || 1,
-      };
     } else {
       let countQuery = `SELECT COUNT(*) AS total FROM RMLogCleansing`;
       let dataQuery = `SELECT * FROM RMLogCleansing`;
