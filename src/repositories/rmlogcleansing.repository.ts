@@ -168,16 +168,6 @@ export class RMLogCleansingRepository {
           totalPages: Math.ceil(total / limit) || 1,
         };
       } catch (err: any) {
-        if (err?.message?.includes('Invalid object name')) {
-          console.warn('[Peringatan] Tabel dbo.RMLogCleansing belum dibuat di SQL Server oleh Kepala IT/DBA.');
-          return {
-            data: [],
-            total: 0,
-            page,
-            limit,
-            totalPages: 1,
-          };
-        }
         throw err;
       }
     } else {
