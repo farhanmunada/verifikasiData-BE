@@ -47,9 +47,7 @@ export class ValidationService {
     const oldIdentity = record.vc_no_peserta_bpjs;
     const patientName = record.vc_nama_p;
 
-    await rmPasienRepository.updateIdentity(vc_no_rm, 'XXX');
-
-    // Catat log perubahan ke dbo.RMLogCleansing
+    // Catat log perubahan ke dbo.RMLogCleansing terlebih dahulu
     const logRecord = await rmLogCleansingRepository.createLog({
       vc_no_rm,
       vc_nama_p: patientName,
@@ -57,6 +55,9 @@ export class ValidationService {
       vc_no_peserta_bpjs_baru: 'XXX',
       vc_user_clean: userClean,
     });
+
+    // Setelah log berhasil tercatat, update nomor identitas pasien menjadi 'XXX'
+    await rmPasienRepository.updateIdentity(vc_no_rm, 'XXX');
 
     return {
       vc_no_rm,

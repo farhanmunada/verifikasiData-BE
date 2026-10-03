@@ -65,10 +65,11 @@ export class ValidationController {
       const result = await validationService.cleanDuplicate(vc_no_rm, userClean);
       return successResponse(c, 'Cleansing berhasil.', result);
     } catch (err: any) {
+      console.error('Error pada proses cleansing:', err);
       if (err.statusCode) {
         return errorResponse(c, err.message, err.code, undefined, err.statusCode);
       }
-      return errorResponse(c, 'Gagal menjalankan action cleansing.', 'CLEANSING_ERROR', undefined, 500);
+      return errorResponse(c, err.message || 'Gagal menjalankan action cleansing.', 'CLEANSING_ERROR', undefined, 500);
     }
   }
 

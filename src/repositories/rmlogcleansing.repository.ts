@@ -63,35 +63,44 @@ export class RMLogCleansingRepository {
     const userClean = data.vc_user_clean || 'ADMIN';
 
     if (isSqlServer) {
-      const pool = await getPool();
-      const res = await pool
-        .request()
-        .input('vc_no_rm', sql.VarChar(50), data.vc_no_rm)
-        .input('vc_nama_p', sql.VarChar(255), data.vc_nama_p || null)
-        .input('vc_no_peserta_bpjs_lama', sql.VarChar(100), data.vc_no_peserta_bpjs_lama || null)
-        .input('vc_no_peserta_bpjs_baru', sql.VarChar(100), newIdentity)
-        .input('vc_user_clean', sql.VarChar(100), userClean)
-        .query(`
-          INSERT INTO dbo.RMLogCleansing (
-            vc_no_rm, 
-            vc_nama_p, 
-            vc_no_peserta_bpjs_lama, 
-            vc_no_peserta_bpjs_baru, 
-            vc_user_clean, 
-            dt_tgl_clean
-          )
-          OUTPUT INSERTED.*
-          VALUES (
-            @vc_no_rm, 
-            @vc_nama_p, 
-            @vc_no_peserta_bpjs_lama, 
-            @vc_no_peserta_bpjs_baru, 
-            @vc_user_clean, 
-            GETDATE()
-          )
-        `);
+      try {
+        const pool = await getPool();
+        await pool
+          .request()
+          .input('vc_no_rm', sql.VarChar(50), data.vc_no_rm)
+          .input('vc_nama_p', sql.VarChar(255), data.vc_nama_p || null)
+          .input('vc_no_peserta_bpjs_lama', sql.VarChar(100), data.vc_no_peserta_bpjs_lama || null)
+          .input('vc_no_peserta_bpjs_baru', sql.VarChar(100), newIdentity)
+          .input('vc_user_clean', sql.VarChar(100), userClean)
+          .query(`
+            INSERT INTO dbo.RMLogCleansing (
+              vc_no_rm, 
+              vc_nama_p, 
+              vc_no_peserta_bpjs_lama, 
+              vc_no_peserta_bpjs_baru, 
+              vc_user_clean
+            )
+            VALUES (
+              @vc_no_rm, 
+              @vc_nama_p, 
+              @vc_no_peserta_bpjs_lama, 
+              @vc_no_peserta_bpjs_baru, 
+              @vc_user_clean
+            )
+          `);
 
-      return res.recordset[0];
+        return {
+          vc_no_rm: data.vc_no_rm,
+          vc_nama_p: data.vc_nama_p || null,
+          vc_no_peserta_bpjs_lama: data.vc_no_peserta_bpjs_lama || null,
+          vc_no_peserta_bpjs_baru: newIdentity,
+          vc_user_clean: userClean,
+          dt_tgl_clean: new Date(),
+        };
+      } catch (err) {
+        console.error('Gagal INSERT ke dbo.RMLogCleansing SQL Server:', err);
+        throw err;
+      }
     } else {
       const stmt = sqliteDb!.prepare(`
         INSERT INTO RMLogCleansing (
